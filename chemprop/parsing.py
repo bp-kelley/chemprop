@@ -43,7 +43,9 @@ def add_predict_args(parser: ArgumentParser):
                         help='Turn off scaling of features')
     parser.add_argument('--max_data_size', type=int,
                         help='Maximum number of data points to load')
-
+    parser.add_argument("--rooted_atom_fps", default=None,
+                        help="Rooted atom fingerprint in method-radius-length format, example morgan-3-1024")
+                        
 
 def add_train_args(parser: ArgumentParser):
     """
@@ -152,7 +154,8 @@ def add_train_args(parser: ArgumentParser):
                         help='Final learning rate')
     parser.add_argument('--no_features_scaling', action='store_true', default=False,
                         help='Turn off scaling of features')
-
+    parser.add_argument("--rooted_atom_fps", default=None,
+                        help="Rooted atom fingerprint in method-radius-length format, example 'morgan-3-1024'")
     # Model arguments
     parser.add_argument('--ensemble_size', type=int, default=1,
                         help='Number of models in ensemble')

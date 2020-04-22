@@ -2,6 +2,8 @@ from argparse import Namespace
 from typing import List, Tuple, Union
 
 from rdkit import Chem
+from rdkit.Chem import AllChem
+import functools
 import torch
 
 # Atom feature sizes
@@ -47,6 +49,8 @@ def get_atom_fdim(args: Namespace) -> int:
 
     :param: Arguments.
     """
+    if args.rooted_atom_fps:
+        return ATOM_FDIM + int(args.rooted_atom_fps.split("-")[2])
     return ATOM_FDIM
 
 
@@ -58,6 +62,24 @@ def get_bond_fdim(args: Namespace) -> int:
     """
     return BOND_FDIM
 
+def get_rooted(atom, func, radius, nBits):
+    return func(
+        atom.GetOwningMol(), 
+        radius=int(radius),
+        nBits=int(nBits),
+        fromAtoms=[atom.GetIdx()])
+
+def get_rooted_fp_func(args: Namespace):
+    if args and args.rooted_atom_fps:
+        func, radius, nBits = args.rooted_atom_fps.split("-")
+        if func == "morgan":
+            return functools.partial(get_rooted,
+                                     func=AllChem.GetMorganFingerprintAsBitVect,
+                                     radius=int(radius), nBits=int(nBits))
+        else:
+            raise ValueError("Unknown rooted fp: %s, example ('morgan-3-1024')"%
+                             func)
+    return None
 
 def onek_encoding_unk(value: int, choices: List[int]) -> List[int]:
     """
@@ -75,7 +97,8 @@ def onek_encoding_unk(value: int, choices: List[int]) -> List[int]:
     return encoding
 
 
-def atom_features(atom: Chem.rdchem.Atom, functional_groups: List[int] = None) -> List[Union[bool, int, float]]:
+def atom_features(atom: Chem.rdchem.Atom, functional_groups: List[int] = None,
+                  args: Namespace=None) -> List[Union[bool, int, float]]:
     """
     Builds a feature vector for an atom.
 
@@ -90,7 +113,17 @@ def atom_features(atom: Chem.rdchem.Atom, functional_groups: List[int] = None) -
            onek_encoding_unk(int(atom.GetTotalNumHs()), ATOM_FEATURES['num_Hs']) + \
            onek_encoding_unk(int(atom.GetHybridization()), ATOM_FEATURES['hybridization']) + \
            [1 if atom.GetIsAromatic() else 0] + \
-           [atom.GetMass() * 0.01]  # scaled to about the same range as other features
+           [atom.GetMass() * 0.01] 
+
+    func = get_rooted_fp_func(args)
+
+    if func:
+        #features += list(AllChem.GetMorganFingerprintAsBitVect(
+        #    atom.GetOwningMol(), 3, 1024,
+        #    fromAtoms=[atom.GetIdx()]))
+        features += list(func(atom))
+
+
     if functional_groups is not None:
         features += functional_groups
     return features
@@ -159,7 +192,7 @@ class MolGraph:
         
         # Get atom features
         for i, atom in enumerate(mol.GetAtoms()):
-            self.f_atoms.append(atom_features(atom))
+            self.f_atoms.append(atom_features(atom, args=args))
         self.f_atoms = [self.f_atoms[i] for i in range(self.n_atoms)]
 
         for _ in range(self.n_atoms):
