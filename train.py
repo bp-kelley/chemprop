@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 """Trains a model on a dataset."""
 
 from chemprop.parsing import parse_train_args

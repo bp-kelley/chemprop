@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 """Loads a trained model checkpoint and makes predictions on a dataset."""
 
 from chemprop.parsing import parse_predict_args
