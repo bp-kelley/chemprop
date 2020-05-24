@@ -71,11 +71,28 @@ def get_rooted(atom, func, radius, nBits):
 
 def get_rooted_fp_func(args: Namespace):
     if args and args.rooted_atom_fps:
-        func, radius, nBits = args.rooted_atom_fps.split("-")
+        func = args.rooted_atom_fps.split("-")[0]
         if func == "morgan":
+            try:
+                func, radius, nBits = args.rooted_atom_fps.split("-")
+            except:
+                print("morgan fingerprint descriptions should be in the form --rooted-atom-fps morgan-radius-nbits",
+                      file=sys.stderr)
+                raise
             return functools.partial(get_rooted,
                                      func=AllChem.GetMorganFingerprintAsBitVect,
                                      radius=int(radius), nBits=int(nBits))
+        elif func == "rdkit":
+            try:
+                func, minPath, maxPath, nBits = args.rooted_atom_fps.split("-")
+            except:
+                print("morgan fingerprint descriptions should be in the form --rooted-atom-fps rdkit-minSize-maxSize-nbits",
+                      file=sys.stderr)
+                raise
+            return functools.partial(get_rooted,
+                                     func=AllChem.RDKFingerprint,
+                                     minPath=int(minPath), maxPath=int(maxPath),
+                                     fpSize=int(nBits))
         else:
             raise ValueError("Unknown rooted fp: %s, example ('morgan-3-1024')"%
                              func)
