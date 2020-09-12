@@ -43,8 +43,8 @@ def add_predict_args(parser: ArgumentParser):
                         help='Turn off scaling of features')
     parser.add_argument('--max_data_size', type=int,
                         help='Maximum number of data points to load')
-    parser.add_argument("--rooted_atom_fps", default=None,
-                        help="Rooted atom fingerprint in method-radius-length format, example morgan-3-1024")
+    parser.add_argument("--graph_invariant_func", default=None,
+                        help="Graph invariant function (rooted fingerprint) example Morgan in method-radius-length format, example morgan-3-1024")
                         
 
 def add_train_args(parser: ArgumentParser):
@@ -154,8 +154,8 @@ def add_train_args(parser: ArgumentParser):
                         help='Final learning rate')
     parser.add_argument('--no_features_scaling', action='store_true', default=False,
                         help='Turn off scaling of features')
-    parser.add_argument("--rooted_atom_fps", default=None,
-                        help="Rooted atom fingerprint in method-radius-length format, example 'morgan-3-1024'")
+    parser.add_argument("--graph_invariant_func", default=None,
+                        help="Graph invariant function (fingerprint) example Morgan in method-radius-length format, example 'morgan-3-1024'")
     # Model arguments
     parser.add_argument('--ensemble_size', type=int, default=1,
                         help='Number of models in ensemble')
@@ -228,10 +228,10 @@ def modify_predict_args(args: Namespace):
     makedirs(args.preds_path, isfile=True)
 
 
-def parse_predict_args() -> Namespace:
+def parse_predict_args(args=None) -> Namespace:
     parser = ArgumentParser()
     add_predict_args(parser)
-    args = parser.parse_args()
+    args = parser.parse_args(args)
     modify_predict_args(args)
 
     return args
@@ -310,7 +310,7 @@ def modify_train_args(args: Namespace):
         args.epochs = 0
 
 
-def parse_train_args() -> Namespace:
+def parse_train_args(args=None) -> Namespace:
     """
     Parses arguments for training (includes modifying/validating arguments).
 
@@ -318,7 +318,7 @@ def parse_train_args() -> Namespace:
     """
     parser = ArgumentParser()
     add_train_args(parser)
-    args = parser.parse_args()
+    args = parser.parse_args(args)
     modify_train_args(args)
 
     return args

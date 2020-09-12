@@ -49,8 +49,8 @@ def get_atom_fdim(args: Namespace) -> int:
 
     :param: Arguments.
     """
-    if args.rooted_atom_fps:
-        return ATOM_FDIM + int(args.rooted_atom_fps.split("-")[2])
+    if args.graph_invariant_func:
+        return ATOM_FDIM + int(args.graph_invariant_func.split("-")[-1])
     return ATOM_FDIM
 
 
@@ -62,21 +62,22 @@ def get_bond_fdim(args: Namespace) -> int:
     """
     return BOND_FDIM
 
-def get_rooted(atom, func, radius, nBits):
+def get_rooted(atom, func, **kw):
     return func(
         atom.GetOwningMol(), 
-        radius=int(radius),
-        nBits=int(nBits),
-        fromAtoms=[atom.GetIdx()])
+        fromAtoms=[atom.GetIdx()],
+        **kw
+    )
 
 def get_rooted_fp_func(args: Namespace):
-    if args and args.rooted_atom_fps:
-        func = args.rooted_atom_fps.split("-")[0]
+    if args and args.graph_invariant_func:
+        func = args.graph_invariant_func.split("-")[0]
         if func == "morgan":
             try:
-                func, radius, nBits = args.rooted_atom_fps.split("-")
+                func, radius, nBits = args.graph_invariant_func.split("-")
             except:
-                print("morgan fingerprint descriptions should be in the form --rooted-atom-fps morgan-radius-nbits",
+                print("morgan fingerprint descriptions should be in the form "
+                      "--rooted-atom-fps morgan-radius-nbits",
                       file=sys.stderr)
                 raise
             return functools.partial(get_rooted,
@@ -84,15 +85,55 @@ def get_rooted_fp_func(args: Namespace):
                                      radius=int(radius), nBits=int(nBits))
         elif func == "rdkit":
             try:
-                func, minPath, maxPath, nBits = args.rooted_atom_fps.split("-")
+                func, minPath, maxPath, nBits = args.graph_invariant_func.split("-")
             except:
-                print("morgan fingerprint descriptions should be in the form --rooted-atom-fps rdkit-minSize-maxSize-nbits",
+                print("rdkit fingerprint descriptions should be in the form "
+                      "--rooted-atom-fps rdkit-minSize-maxSize-nbits",
                       file=sys.stderr)
                 raise
             return functools.partial(get_rooted,
                                      func=AllChem.RDKFingerprint,
                                      minPath=int(minPath), maxPath=int(maxPath),
                                      fpSize=int(nBits))
+        elif func == "rdkitunbranched":
+            try:
+                func, minPath, maxPath, nBits = args.graph_invariant_func.split("-")
+            except:
+                print("morgan fingerprint descriptions should be in the form "
+                      "--rooted-atom-fps rdkit-minSize-maxSize-nbits",
+                      file=sys.stderr)
+                raise
+            return functools.partial(get_rooted,
+                                     func=AllChem.RDKFingerprint,
+                                     minPath=int(minPath), maxPath=int(maxPath),
+                                     fpSize=int(nBits),
+                                     branchedPaths=False
+            )
+        elif func == "atompairs":
+            try:
+                func, minLength, maxLength, nBits = args.graph_invariant_func.split("-")
+            except:
+                print("atom pair fingerprint descriptions should be in the form "
+                      "--rooted-atom-fps rdkit-minSize-maxSize-nbits",
+                      file=sys.stderr)
+                raise
+            return functools.partial(get_rooted,
+                                     func=AllChem.GetHashedAtomPairFingerprintAsBitVect,
+                                     minLength=int(minLength), maxLength=int(maxLength),
+                                     nBits=int(nBits))
+        elif func == "morgancounts":
+            try:
+                func, radius, nBits = args.graph_invariant_func.split("-")
+            except:
+                print("morgan counts fingerprint descriptions should be in the form "
+                      "--rooted-atom-fps morgan-radius-nbits",
+                      file=sys.stderr)
+                raise
+            
+            return functools.partial(get_rooted,
+                                     func=AllChem.GetMorganFingerprintAsBitVect,
+                                     radius=int(radius), nBits=int(nBits))
+        
         else:
             raise ValueError("Unknown rooted fp: %s, example ('morgan-3-1024')"%
                              func)
