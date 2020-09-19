@@ -49,8 +49,10 @@ def get_atom_fdim(args: Namespace) -> int:
 
     :param: Arguments.
     """
+
     if args.graph_invariant_func:
         return ATOM_FDIM + int(args.graph_invariant_func.split("-")[-1])
+
     return ATOM_FDIM
 
 
@@ -68,6 +70,12 @@ def get_rooted(atom, func, **kw):
         fromAtoms=[atom.GetIdx()],
         **kw
     )
+
+def get_rdkit_rooted(atom, func, minPath, maxPath, fpSize):
+    return func(
+        atom.GetOwningMol(), 
+        minPath=minPath, maxPath=maxPath, fpSize=fpSize,
+        fromAtoms=[atom.GetIdx()])
 
 def get_rooted_fp_func(args: Namespace):
     if args and args.graph_invariant_func:
@@ -91,7 +99,7 @@ def get_rooted_fp_func(args: Namespace):
                       "--rooted-atom-fps rdkit-minSize-maxSize-nbits",
                       file=sys.stderr)
                 raise
-            return functools.partial(get_rooted,
+            return functools.partial(get_rdkit_rooted,
                                      func=AllChem.RDKFingerprint,
                                      minPath=int(minPath), maxPath=int(maxPath),
                                      fpSize=int(nBits))
@@ -135,7 +143,7 @@ def get_rooted_fp_func(args: Namespace):
                                      radius=int(radius), nBits=int(nBits))
         
         else:
-            raise ValueError("Unknown rooted fp: %s, example ('morgan-3-1024')"%
+            raise ValueError("Unknown rooted fp: %s, example ('morgan-3-256', 'rdkit-1-7-256)"%
                              func)
     return None
 
@@ -176,10 +184,8 @@ def atom_features(atom: Chem.rdchem.Atom, functional_groups: List[int] = None,
     func = get_rooted_fp_func(args)
 
     if func:
-        #features += list(AllChem.GetMorganFingerprintAsBitVect(
-        #    atom.GetOwningMol(), 3, 1024,
-        #    fromAtoms=[atom.GetIdx()]))
-        features += list(func(atom))
+        atom_feats = list(func(atom))
+        features += atom_feats
 
 
     if functional_groups is not None:
