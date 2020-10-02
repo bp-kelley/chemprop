@@ -99,7 +99,7 @@ def method_string_to_graph_invariant(method_string):
         func = AtomPairs(minLength, maxLength, nBits)
 
     else:
-        raise ValueError("Could not parse method %s"%args.method)
+        raise ValueError("Could not parse method %s"%method)
 
     return func
 
