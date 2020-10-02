@@ -6,6 +6,7 @@ from chemprop.train import make_predictions
 from pathlib import Path
 import os
 import csv
+import logging
 
 class MorganRootedAtoms:
     FUNC = "morgan"
