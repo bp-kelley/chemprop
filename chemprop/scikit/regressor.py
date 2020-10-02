@@ -70,7 +70,7 @@ def method_string_to_graph_invariant(method_string):
             logging.error("morgancounts format is morgancounts-radius-nbits")
             raise
 
-            func = MorganCountRootedAtoms(radius, nbits)
+        func = MorganCountRootedAtoms(radius, nbits)
         
     elif method == "rdkit":
         try:
@@ -78,6 +78,7 @@ def method_string_to_graph_invariant(method_string):
         except ValueError:
             logging.error("rdkit format is rdkit-minPath-maxPath-fpSize")
             raise
+
         func = RDKitRootedAtoms(minPath, maxPath, fpSize)
         
     elif method == "rdkitunbranched":
