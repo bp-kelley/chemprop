@@ -7,7 +7,6 @@ from pathlib import Path
 import os
 import csv
 
-
 class MorganRootedAtoms:
     FUNC = "morgan"
     def __init__(self, radius=3, nbits=256):
@@ -42,7 +41,68 @@ class AtomPairs:
 
     def command_line(self):
         return f"{self.FUNC}-{self.minLength}-{self.maxLength}-{self.nBits}"
+
+def method_string_to_graph_invariant(method_string):
+    """Returns a method string, like morgan-3-256 to the appropraite
+    method class.
+
+    This is generally used for command line interface validation.
+    """
+    if not method_string:
+        return None
     
+    groups = method_string.split("-")
+    groups[0] = groups[0].lower()
+    method = groups[0]
+    if method == "morgan":
+        try:
+            radius, nbits = map(int, groups[1:])
+        except ValueError:
+            logging.error("morgan format is morgan-radius-nbits")
+            raise
+        
+        func = MorganRootedAtoms(radius, nbits)
+
+    elif method == "morgancounts":
+        try:
+            radius, nbits = map(int, groups[1:])
+        except ValueError:
+            logging.error("morgancounts format is morgancounts-radius-nbits")
+            raise
+
+            func = MorganCountRootedAtoms(radius, nbits)
+        
+    elif method == "rdkit":
+        try:
+            minPath, maxPath, fpSize = map(int, groups[1:])
+        except ValueError:
+            logging.error("rdkit format is rdkit-minPath-maxPath-fpSize")
+            raise
+        func = RDKitRootedAtoms(minPath, maxPath, fpSize)
+        
+    elif method == "rdkitunbranched":
+        try:
+            minPath, maxPath, fpSize = map(int, groups[1:])
+        except:
+            logging.error("rdkitunbranched format is rdkitunbranched-minPath-maxPath-fpSize")
+            raise
+            
+        func = RDKitUnbranchedRootedAtoms(minPath, maxPath, fpSize)
+        
+    elif method == "atompairs":
+        try:
+            minLength, maxLength, nBits = map(int, groups[1:])
+        except:
+            logging.error("atompairs format is rdkitunbranched-minPath-maxPath-fpSize")
+            raise
+            
+        func = AtomPairs(minLength, maxLength, nBits)
+
+    else:
+        raise ValueError("Could not parse method %s"%args.method)
+
+    return func
+
 PARSING_KEYWORDS = ['epochs', 'batch_size', 'warmup_epochs',
                     'init_lr', 'max_lr', 'final_lr', 'ensemble_size', 'hidden_size',
                     'bias', 'depth', 'dropout', 'activation', 'undirected',
