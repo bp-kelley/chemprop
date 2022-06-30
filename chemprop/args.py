@@ -113,7 +113,9 @@ class CommonArgs(Tap):
     """
     Whether to empty all caches before training or predicting. This is necessary if multiple jobs are run within a single script and the atom or bond features change.
     """
-
+    graph_invariant_func: str = None
+    """
+    """
     def __init__(self, *args, **kwargs):
         super(CommonArgs, self).__init__(*args, **kwargs)
         self._atom_features_size = 0

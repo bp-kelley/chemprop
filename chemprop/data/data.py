@@ -68,7 +68,8 @@ class MoleculeDatapoint:
                  atom_descriptors: np.ndarray = None,
                  bond_features: np.ndarray = None,
                  overwrite_default_atom_features: bool = False,
-                 overwrite_default_bond_features: bool = False):
+                 overwrite_default_bond_features: bool = False,
+                 graph_invariant_func: str=None):
         """
         :param smiles: A list of the SMILES strings for the molecules.
         :param targets: A list of targets for the molecule (contains None for unknown target values).
@@ -83,6 +84,7 @@ class MoleculeDatapoint:
         :param bond_features: A numpy array containing additional bond features to featurize the molecule
         :param overwrite_default_atom_features: Boolean to overwrite default atom features by atom_features
         :param overwrite_default_bond_features: Boolean to overwrite default bond features by bond_features
+        :param graoh_invariant_func: optional function to generate extra graph invariants
 
         """
         if features is not None and features_generator is not None:
@@ -99,6 +101,7 @@ class MoleculeDatapoint:
         self.bond_features = bond_features
         self.overwrite_default_atom_features = overwrite_default_atom_features
         self.overwrite_default_bond_features = overwrite_default_bond_features
+        self.graph_invariant_func = graph_invariant_func
         self.is_mol_list = [is_mol(s) for s in smiles]
         self.is_reaction_list = [is_reaction(x) for x in self.is_mol_list]
         self.is_explicit_h_list = [is_explicit_h(x) for x in self.is_mol_list]
@@ -311,7 +314,8 @@ class MoleculeDataset(Dataset):
 
                         mol_graph = MolGraph(m, d.atom_features, d.bond_features,
                                              overwrite_default_atom_features=d.overwrite_default_atom_features,
-                                             overwrite_default_bond_features=d.overwrite_default_bond_features)
+                                             overwrite_default_bond_features=d.overwrite_default_bond_features,
+                                             graph_invariant_func=d.graph_invariant_func)
                         if cache_graph():
                             SMILES_TO_GRAPH[s] = mol_graph
                     mol_graphs_list.append(mol_graph)

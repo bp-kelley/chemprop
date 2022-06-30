@@ -3,10 +3,12 @@ from itertools import zip_longest
 import logging
 
 from rdkit import Chem
+from rdkit.Chem import AllChem
 import torch
 import numpy as np
-
+import functools
 from chemprop.rdkit import make_mol
+
 
 class Featurization_parameters:
     """
@@ -64,18 +66,24 @@ def reset_featurization_parameters(logger: logging.Logger = None) -> None:
     PARAMS = Featurization_parameters()
 
 
-def get_atom_fdim(overwrite_default_atom: bool = False, is_reaction: bool = False) -> int:
+def get_atom_fdim(overwrite_default_atom: bool = False, is_reaction: bool = False,
+                  graph_invariant_func: str = None) -> int:
     """
     Gets the dimensionality of the atom feature vector.
 
     :param overwrite_default_atom: Whether to overwrite the default atom descriptors
     :param is_reaction: Whether to add :code:`EXTRA_ATOM_FDIM` for reaction input when :code:`REACTION_MODE` is not None
+    :param graph_invariant_func: The graph invariant function to use if any
     :return: The dimensionality of the atom feature vector.
     """
+    graph_inv_feats = 0
+    if graph_invariant_func:
+        graph_inv_feats = int(graph_invariant_func.split("-")[-1])
+    
     if PARAMS.REACTION_MODE:
-        return (not overwrite_default_atom) * PARAMS.ATOM_FDIM + is_reaction * PARAMS.EXTRA_ATOM_FDIM
+        return (not overwrite_default_atom) * PARAMS.ATOM_FDIM + is_reaction * PARAMS.EXTRA_ATOM_FDIM + graph_inv_feats
     else:
-        return (not overwrite_default_atom) * PARAMS.ATOM_FDIM + PARAMS.EXTRA_ATOM_FDIM
+        return (not overwrite_default_atom) * PARAMS.ATOM_FDIM + PARAMS.EXTRA_ATOM_FDIM + graph_inv_feats
 
 
 def set_explicit_h(explicit_h: bool) -> None:
@@ -142,10 +150,94 @@ def set_extra_atom_fdim(extra):
     PARAMS.EXTRA_ATOM_FDIM = extra
 
 
+def get_rooted(atom, func, **kw):
+    return func(
+        atom.GetOwningMol(), 
+        fromAtoms=[atom.GetIdx()],
+        **kw
+    )
+
+def get_rdkit_rooted(atom, func, minPath, maxPath, fpSize):
+    return func(
+        atom.GetOwningMol(), 
+        minPath=minPath, maxPath=maxPath, fpSize=fpSize,
+        fromAtoms=[atom.GetIdx()])
+
+def get_rooted_fp_func(graph_invariant_func: str=None):
+    if graph_invariant_func:
+        func = graph_invariant_func.split("-")[0]
+        if func == "morgan":
+            try:
+                func, radius, nBits = graph_invariant_func.split("-")
+            except:
+                print("morgan fingerprint descriptions should be in the form "
+                      "--rooted-atom-fps morgan-radius-nbits",
+                      file=sys.stderr)
+                raise
+            return functools.partial(get_rooted,
+                                     func=AllChem.GetMorganFingerprintAsBitVect,
+                                     radius=int(radius), nBits=int(nBits))
+        elif func == "rdkit":
+            try:
+                func, minPath, maxPath, nBits = graph_invariant_func.split("-")
+            except:
+                print("rdkit fingerprint descriptions should be in the form "
+                      "--rooted-atom-fps rdkit-minSize-maxSize-nbits",
+                      file=sys.stderr)
+                raise
+            return functools.partial(get_rdkit_rooted,
+                                     func=AllChem.RDKFingerprint,
+                                     minPath=int(minPath), maxPath=int(maxPath),
+                                     fpSize=int(nBits))
+        elif func == "rdkitunbranched":
+            try:
+                func, minPath, maxPath, nBits = graph_invariant_func.split("-")
+            except:
+                print("morgan fingerprint descriptions should be in the form "
+                      "--rooted-atom-fps rdkit-minSize-maxSize-nbits",
+                      file=sys.stderr)
+                raise
+            return functools.partial(get_rooted,
+                                     func=AllChem.RDKFingerprint,
+                                     minPath=int(minPath), maxPath=int(maxPath),
+                                     fpSize=int(nBits),
+                                     branchedPaths=False
+            )
+        elif func == "atompairs":
+            try:
+                func, minLength, maxLength, nBits = graph_invariant_func.split("-")
+            except:
+                print("atom pair fingerprint descriptions should be in the form "
+                      "--rooted-atom-fps rdkit-minSize-maxSize-nbits",
+                      file=sys.stderr)
+                raise
+            return functools.partial(get_rooted,
+                                     func=AllChem.GetHashedAtomPairFingerprintAsBitVect,
+                                     minLength=int(minLength), maxLength=int(maxLength),
+                                     nBits=int(nBits))
+        elif func == "morgancounts":
+            try:
+                func, radius, nBits = graph_invariant_func.split("-")
+            except:
+                print("morgan counts fingerprint descriptions should be in the form "
+                      "--rooted-atom-fps morgan-radius-nbits",
+                      file=sys.stderr)
+                raise
+            
+            return functools.partial(get_rooted,
+                                     func=AllChem.GetMorganFingerprintAsBitVect,
+                                     radius=int(radius), nBits=int(nBits))
+        
+        else:
+            raise ValueError("Unknown rooted fp: %s, example ('morgan-3-256', 'rdkit-1-7-256)"%
+                             func)
+    return None
+    
 def get_bond_fdim(atom_messages: bool = False,
                   overwrite_default_bond: bool = False,
                   overwrite_default_atom: bool = False,
-                  is_reaction: bool = False) -> int:
+                  is_reaction: bool = False,
+                  graph_invariant_func: str = None) -> int:
     """
     Gets the dimensionality of the bond feature vector.
 
@@ -160,10 +252,10 @@ def get_bond_fdim(atom_messages: bool = False,
 
     if PARAMS.REACTION_MODE:
         return (not overwrite_default_bond) * PARAMS.BOND_FDIM + is_reaction * PARAMS.EXTRA_BOND_FDIM + \
-            (not atom_messages) * get_atom_fdim(overwrite_default_atom=overwrite_default_atom, is_reaction=is_reaction)
+            (not atom_messages) * get_atom_fdim(overwrite_default_atom=overwrite_default_atom, is_reaction=is_reaction, graph_invariant_func=graph_invariant_func)
     else:
         return (not overwrite_default_bond) * PARAMS.BOND_FDIM + PARAMS.EXTRA_BOND_FDIM + \
-            (not atom_messages) * get_atom_fdim(overwrite_default_atom=overwrite_default_atom, is_reaction=is_reaction)
+            (not atom_messages) * get_atom_fdim(overwrite_default_atom=overwrite_default_atom, is_reaction=is_reaction, graph_invariant_func=graph_invariant_func)
 
 
 def set_extra_bond_fdim(extra):
@@ -187,7 +279,7 @@ def onek_encoding_unk(value: int, choices: List[int]) -> List[int]:
     return encoding
 
 
-def atom_features(atom: Chem.rdchem.Atom, functional_groups: List[int] = None) -> List[Union[bool, int, float]]:
+def atom_features(atom: Chem.rdchem.Atom, functional_groups: List[int] = None, graph_invariant_func: str=None) -> List[Union[bool, int, float]]:
     """
     Builds a feature vector for an atom.
 
@@ -208,6 +300,11 @@ def atom_features(atom: Chem.rdchem.Atom, functional_groups: List[int] = None) -
             [atom.GetMass() * 0.01]  # scaled to about the same range as other features
         if functional_groups is not None:
             features += functional_groups
+        func = get_rooted_fp_func(graph_invariant_func)
+        if func:
+            atom_feats = list(func(atom))
+            features += atom_feats
+        
     return features
 
 
@@ -309,7 +406,8 @@ class MolGraph:
                  atom_features_extra: np.ndarray = None,
                  bond_features_extra: np.ndarray = None,
                  overwrite_default_atom_features: bool = False,
-                 overwrite_default_bond_features: bool = False):
+                 overwrite_default_bond_features: bool = False,
+                 graph_invariant_func: str = None):
         """
         :param mol: A SMILES or an RDKit molecule.
         :param atom_features_extra: A list of 2D numpy array containing additional atom features to featurize the molecule
@@ -339,10 +437,11 @@ class MolGraph:
         self.b2revb = []  # mapping from bond index to the index of the reverse bond
         self.overwrite_default_atom_features = overwrite_default_atom_features
         self.overwrite_default_bond_features = overwrite_default_bond_features
-
+        self.graph_invariant_func = graph_invariant_func
+        
         if not self.is_reaction:
             # Get atom features
-            self.f_atoms = [atom_features(atom) for atom in mol.GetAtoms()]
+            self.f_atoms = [atom_features(atom, graph_invariant_func=graph_invariant_func) for atom in mol.GetAtoms()]
             if atom_features_extra is not None:
                 if overwrite_default_atom_features:
                     self.f_atoms = [descs.tolist() for descs in atom_features_extra]
@@ -405,20 +504,20 @@ class MolGraph:
             # Get atom features
             if self.reaction_mode in ['reac_diff','prod_diff', 'reac_prod']:
                 #Reactant: regular atom features for each atom in the reactants, as well as zero features for atoms that are only in the products (indices in pio)
-                f_atoms_reac = [atom_features(atom) for atom in mol_reac.GetAtoms()] + [atom_features_zeros(mol_prod.GetAtomWithIdx(index)) for index in pio]
+                f_atoms_reac = [atom_features(atom, graph_invariant_func=graph_invariant_func) for atom in mol_reac.GetAtoms()] + [atom_features_zeros(mol_prod.GetAtomWithIdx(index), graph_invariant_func=graph_invariant_func) for index in pio]
                 
                 #Product: regular atom features for each atom that is in both reactants and products (not in rio), other atom features zero,
                 #regular features for atoms that are only in the products (indices in pio)
-                f_atoms_prod = [atom_features(mol_prod.GetAtomWithIdx(ri2pi[atom.GetIdx()])) if atom.GetIdx() not in rio else
-                                atom_features_zeros(atom) for atom in mol_reac.GetAtoms()] + [atom_features(mol_prod.GetAtomWithIdx(index)) for index in pio]
+                f_atoms_prod = [atom_features(mol_prod.GetAtomWithIdx(ri2pi[atom.GetIdx()]), graph_invariant_func=graph_invariant_func) if atom.GetIdx() not in rio else
+                                atom_features_zeros(atom, graph_invariant_func=graph_invariant_func) for atom in mol_reac.GetAtoms()] + [atom_features(mol_prod.GetAtomWithIdx(index), graph_invariant_func=graph_invariant_func) for index in pio]
             else: #balance
                 #Reactant: regular atom features for each atom in the reactants, copy features from product side for atoms that are only in the products (indices in pio)
-                f_atoms_reac = [atom_features(atom) for atom in mol_reac.GetAtoms()] + [atom_features(mol_prod.GetAtomWithIdx(index)) for index in pio]
+                f_atoms_reac = [atom_features(atom, graph_invariant_func=graph_invariant_func) for atom in mol_reac.GetAtoms()] + [atom_features(mol_prod.GetAtomWithIdx(index), graph_invariant_func=graph_invariant_func) for index in pio]
                 
                 #Product: regular atom features for each atom that is in both reactants and products (not in rio), copy features from reactant side for
                 #other atoms, regular features for atoms that are only in the products (indices in pio)
-                f_atoms_prod = [atom_features(mol_prod.GetAtomWithIdx(ri2pi[atom.GetIdx()])) if atom.GetIdx() not in rio else
-                                atom_features(atom) for atom in mol_reac.GetAtoms()] + [atom_features(mol_prod.GetAtomWithIdx(index)) for index in pio]
+                f_atoms_prod = [atom_features(mol_prod.GetAtomWithIdx(ri2pi[atom.GetIdx()], graph_invariant_func=graph_invariant_func), graph_invariant_func=graph_invariant_func) if atom.GetIdx() not in rio else
+                                atom_features(atom, graph_invariant_func=graph_invariant_func) for atom in mol_reac.GetAtoms()] + [atom_features(mol_prod.GetAtomWithIdx(index), graph_invariant_func=graph_invariant_func) for index in pio]
 
             if self.reaction_mode in ['reac_diff', 'prod_diff', 'reac_diff_balance', 'prod_diff_balance']:
                 f_atoms_diff = [list(map(lambda x, y: x - y, ii, jj)) for ii, jj in zip(f_atoms_prod, f_atoms_reac)]
@@ -512,11 +611,12 @@ class BatchMolGraph:
         self.overwrite_default_atom_features = mol_graphs[0].overwrite_default_atom_features
         self.overwrite_default_bond_features = mol_graphs[0].overwrite_default_bond_features
         self.is_reaction = mol_graphs[0].is_reaction
+        self.graph_invariant_func = mol_graphs[0].graph_invariant_func
         self.atom_fdim = get_atom_fdim(overwrite_default_atom=self.overwrite_default_atom_features,
-                                       is_reaction=self.is_reaction)
+                                       is_reaction=self.is_reaction, graph_invariant_func=self.graph_invariant_func)
         self.bond_fdim = get_bond_fdim(overwrite_default_bond=self.overwrite_default_bond_features,
-                                      overwrite_default_atom=self.overwrite_default_atom_features,
-                                      is_reaction=self.is_reaction)
+                                       overwrite_default_atom=self.overwrite_default_atom_features,
+                                       is_reaction=self.is_reaction, graph_invariant_func=self.graph_invariant_func)
 
         # Start n_atoms and n_bonds at 1 b/c zero padding
         self.n_atoms = 1  # number of atoms (start at 1 b/c need index 0 as padding)
@@ -581,7 +681,8 @@ class BatchMolGraph:
         if atom_messages:
             f_bonds = self.f_bonds[:, -get_bond_fdim(atom_messages=atom_messages,
                                                      overwrite_default_atom=self.overwrite_default_atom_features,
-                                                     overwrite_default_bond=self.overwrite_default_bond_features):]
+                                                     overwrite_default_bond=self.overwrite_default_bond_features,
+                                                     graph_invariant_func=self.graph_invariant_func):]
         else:
             f_bonds = self.f_bonds
 
@@ -621,7 +722,8 @@ def mol2graph(mols: Union[List[str], List[Chem.Mol], List[Tuple[Chem.Mol, Chem.M
               atom_features_batch: List[np.array] = (None,),
               bond_features_batch: List[np.array] = (None,),
               overwrite_default_atom_features: bool = False,
-              overwrite_default_bond_features: bool = False
+              overwrite_default_bond_features: bool = False,
+              args = None
               ) -> BatchMolGraph:
     """
     Converts a list of SMILES or RDKit molecules to a :class:`BatchMolGraph` containing the batch of molecular graphs.
@@ -633,9 +735,11 @@ def mol2graph(mols: Union[List[str], List[Chem.Mol], List[Tuple[Chem.Mol, Chem.M
     :param overwrite_default_bond_features: Boolean to overwrite default bond descriptors by bond_descriptors instead of concatenating
     :return: A :class:`BatchMolGraph` containing the combined molecular graph for the molecules.
     """
+    assert args
     return BatchMolGraph([MolGraph(mol, af, bf,
                                    overwrite_default_atom_features=overwrite_default_atom_features,
-                                   overwrite_default_bond_features=overwrite_default_bond_features)
+                                   overwrite_default_bond_features=overwrite_default_bond_features,
+                                   args=args)
                           for mol, af, bf
                           in zip_longest(mols, atom_features_batch, bond_features_batch)])
 
