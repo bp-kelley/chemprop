@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 """Loads a trained chemprop model checkpoint and makes predictions on a dataset."""
 
 from chemprop.train import chemprop_predict

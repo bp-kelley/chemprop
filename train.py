@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 """Trains a chemprop model on a dataset."""
 
 from chemprop.train import chemprop_train
